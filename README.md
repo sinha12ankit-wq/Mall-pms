@@ -26,7 +26,25 @@ infra/postgres/ Local database bootstrap (creates the application role)
 ```
 
 The API is a modular monolith. Each business area gets its own NestJS module and its own Postgres
-schema (`core`, `space`, and next `ops`), so a module can later be split out without untangling tables.
+schema, so a module can later be split out without untangling tables.
+
+## Data model
+
+| Schema  | Tables                                                                                                   |
+| ------- | -------------------------------------------------------------------------------------------------------- |
+| `core`  | organizations, users, role_assignments, refresh_tokens                                                   |
+| `space` | malls, levels, zones, units                                                                              |
+| `ops`   | vendors, assets, maintenance_schedules, work_orders, compliance_items, incidents; view compliance_status |
+
+Conventions:
+
+- Every mall-scoped table carries `org_id` and `mall_id`, with row-level security on both. A composite
+  foreign key to `malls(id, org_id)` keeps them consistent, and references between mall-scoped tables
+  (a work order's asset, a unit's level) include `mall_id`, so a row can never point into another mall.
+- Rows have a UUID primary key and a human `code` unique within the mall (e.g. `M01-CHI-001`, `WO0021181`).
+- Values that depend on today's date are computed, not stored: compliance status comes from the
+  `ops.compliance_status` view, and a work order is in SLA breach when it closes (or is still open) after `due_at`.
+- Money is `numeric(12,2)` in rupees; areas are square feet, carpet and super area kept separately.
 
 ## Getting started
 
@@ -38,7 +56,8 @@ cp .env.example .env
 docker compose up -d db        # Postgres on localhost:5432
 pnpm build:packages
 pnpm db:migrate
-pnpm db:seed                   # demo org, 2 malls, 5 users
+pnpm db:seed                   # demo org and 5 users
+pnpm db:seed:sample            # optional: 10 malls of synthetic operations data (~15s)
 pnpm dev                       # API on :4000, web on :3000
 ```
 
@@ -93,7 +112,7 @@ builds and both Docker images on every pull request.
 
 ## Roadmap
 
-1. Foundations (this stage): monorepo, auth, roles per mall, row-level security, CI, Docker.
+1. Foundations: monorepo, auth, roles per mall, row-level security, CI, Docker.
 2. Space model (levels, zones, units) and Operations tables, with a loader for the sample dataset.
 3. Operations MVP: assets, planned maintenance, work orders and SLAs, compliance calendar, incidents.
 4. Staff mobile app.
