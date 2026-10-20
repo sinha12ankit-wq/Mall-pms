@@ -16,7 +16,8 @@
     "test": "pnpm -r test",
     "db:generate": "pnpm --filter @mall-pms/db generate",
     "db:migrate": "pnpm --filter @mall-pms/db migrate",
-    "db:seed": "pnpm --filter @mall-pms/db seed"
+    "db:seed": "pnpm --filter @mall-pms/db seed",
+    "db:seed:sample": "pnpm --filter @mall-pms/db seed:sample"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

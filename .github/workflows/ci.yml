@@ -50,6 +50,8 @@ jobs:
         run: |
           psql "$DATABASE_URL" -f infra/postgres/init.sql
           pnpm db:migrate
+      - name: Load sample data (twice, to check it is idempotent)
+        run: pnpm db:seed:sample && pnpm db:seed:sample
       - name: Check migrations match the schema
         run: |
           pnpm db:generate
