@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mallpms
+          POSTGRES_PASSWORD: mallpms
+          POSTGRES_DB: mallpms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mallpms -d mallpms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://mallpms:mallpms@localhost:5432/mallpms
+      APP_DATABASE_URL: postgres://mallpms_app:mallpms_app@localhost:5432/mallpms
+      JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm build:packages
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - name: Prepare database
+        run: |
+          psql "$DATABASE_URL" -f infra/postgres/init.sql
+          pnpm db:migrate
+      - name: Check migrations match the schema
+        run: |
+          pnpm db:generate
+          git diff --exit-code -- packages/db/migrations || (echo "Schema changed without a migration. Run pnpm db:generate and commit the result." && exit 1)
+      - run: pnpm test
+      - run: pnpm build
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f apps/api/Dockerfile -t mall-pms-api .
+      - run: docker build -f apps/web/Dockerfile -t mall-pms-web .
