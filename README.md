@@ -73,6 +73,27 @@ Sign in at http://localhost:3000 with any seeded user and the password `ChangeMe
 
 To run everything in containers instead: `docker compose --profile app up --build`.
 
+## Using the web app
+
+Load the sample data first (`pnpm db:seed:sample`) so there is something to look at.
+
+- **Portfolio** (`/`): every mall you can access, with open work orders, SLA breaches, overdue
+  maintenance and licence alerts. Users with a single mall go straight to it.
+- **Mall overview**: KPIs (open work orders, on-time closure, PPM overdue, licences, incidents),
+  open work by priority and the assets breaking down most often.
+- **Work orders**: search and filter, raise a new one (the SLA is set from the priority), then start,
+  hold, close (with labour and material cost) or cancel it.
+- **Assets**: worst health first, with each asset's PPM schedule, 12-month cost and recent work orders.
+- **Maintenance**: PPM tasks overdue, due this week or this month.
+- **Compliance**: licences and statutory tests, overdue and expiring first.
+- **Incidents**: the security incident log.
+
+Tabs and buttons follow the user's role (a technician sees no compliance or incidents, a viewer can't
+raise work orders); the API enforces the same rules.
+
+The sample data stops on 30 Sep 2026, so dashboards measure their rolling windows up to the last
+recorded activity, and work orders still open in the data show as past their SLA.
+
 ## Common commands
 
 | Command                                      | What it does                                                                  |
@@ -114,5 +135,6 @@ builds and both Docker images on every pull request.
 
 1. Foundations: monorepo, auth, roles per mall, row-level security, CI, Docker.
 2. Space model (levels, zones, units) and Operations tables, with a loader for the sample dataset.
-3. Operations MVP: assets, planned maintenance, work orders and SLAs, compliance calendar, incidents.
+3. Operations MVP: assets, planned maintenance, work orders and SLAs, compliance calendar, incidents
+   (first version of the API and web app in place).
 4. Staff mobile app.
