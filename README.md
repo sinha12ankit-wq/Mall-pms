@@ -1,3 +1,99 @@
 # Mall PMS
 
-Property management system for a portfolio of shopping malls in India.
+Property management system for a portfolio of shopping malls in India (10 malls, ~500 units each).
+Operations (assets, maintenance, work orders, compliance, security) is the first module.
+
+## Stack
+
+| Part        | Choice                                                          |
+| ----------- | --------------------------------------------------------------- |
+| Monorepo    | pnpm workspaces                                                 |
+| API         | NestJS 11 (TypeScript), `apps/api`                              |
+| Web         | Next.js 16 App Router, `apps/web`                               |
+| Database    | PostgreSQL 16, Drizzle ORM and SQL migrations, `packages/db`    |
+| Shared code | Roles, permissions and request schemas (zod), `packages/shared` |
+
+## Layout
+
+```
+apps/
+  api/          NestJS API (auth, malls, health)
+  web/          Next.js web app (sign-in, mall list)
+packages/
+  db/           Drizzle schema, migrations, migrate and seed scripts
+  shared/       RBAC model and DTO schemas used by API and web
+infra/postgres/ Local database bootstrap (creates the application role)
+```
+
+The API is a modular monolith. Each business area gets its own NestJS module and its own Postgres
+schema (`core`, `space`, and next `ops`), so a module can later be split out without untangling tables.
+
+## Getting started
+
+Requirements: Node 22, pnpm 10 (`corepack enable`), Docker.
+
+```bash
+pnpm install
+cp .env.example .env
+docker compose up -d db        # Postgres on localhost:5432
+pnpm build:packages
+pnpm db:migrate
+pnpm db:seed                   # demo org, 2 malls, 5 users
+pnpm dev                       # API on :4000, web on :3000
+```
+
+Sign in at http://localhost:3000 with any seeded user and the password `ChangeMe!2026`:
+
+| Email                        | Role                | Scope     |
+| ---------------------------- | ------------------- | --------- |
+| admin@demo.mallpms.in        | Portfolio admin     | All malls |
+| manager.m01@demo.mallpms.in  | Mall manager        | M01       |
+| fm.m01@demo.mallpms.in       | Facility manager    | M01       |
+| tech.m01@demo.mallpms.in     | Technician          | M01       |
+| security.m02@demo.mallpms.in | Security supervisor | M02       |
+
+To run everything in containers instead: `docker compose --profile app up --build`.
+
+## Common commands
+
+| Command                                      | What it does                                                                  |
+| -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `pnpm test`                                  | Unit tests and API end-to-end tests (needs the database running and migrated) |
+| `pnpm lint`, `pnpm typecheck`, `pnpm format` | Code quality                                                                  |
+| `pnpm db:generate`                           | Write a new migration after changing `packages/db/src/schema`                 |
+| `pnpm db:migrate`                            | Apply migrations                                                              |
+
+CI runs formatting, lint, typecheck, migrations, a check that migrations match the schema, tests,
+builds and both Docker images on every pull request.
+
+## Security model
+
+- **Authentication.** Email and password (argon2id). The API issues a 15-minute JWT access token and a
+  30-day refresh token. Refresh tokens are stored hashed, rotate on every use, and reusing an old one
+  revokes the whole session family. Login is rate limited to 5 attempts a minute per IP.
+- **Web sessions.** Tokens live in httpOnly cookies set by the Next.js server, so browser scripts never
+  see them. `src/proxy.ts` refreshes the access token before it expires.
+- **Authorisation.** Users hold roles, each either portfolio-wide or limited to one mall. Roles map to
+  permissions in `packages/shared/src/rbac.ts`. Routes declare what they need with
+  `@RequirePermission(permission, scope)`; a global guard checks it against the `:mallId` in the URL.
+  Users and roles are reloaded on every request, so revoking access takes effect immediately.
+- **Row-level security.** The API connects as `mallpms_app`, which cannot change the schema and is always
+  subject to Postgres row-level security. Every tenant query runs inside `withTenant`, which sets the
+  caller's organisation and malls for that transaction. Without them, queries return nothing. Migrations
+  and seeds run as the schema owner.
+
+| Role                | Can do                                                           |
+| ------------------- | ---------------------------------------------------------------- |
+| Portfolio admin     | Everything, including managing users                             |
+| Mall manager        | Everything in their mall except managing users                   |
+| Facility manager    | Read all; manage space, assets, work orders, vendors, compliance |
+| Technician          | Read space and assets; create and update work orders             |
+| Security supervisor | Manage incidents; raise work orders                              |
+| Viewer              | Read only                                                        |
+
+## Roadmap
+
+1. Foundations (this stage): monorepo, auth, roles per mall, row-level security, CI, Docker.
+2. Space model (levels, zones, units) and Operations tables, with a loader for the sample dataset.
+3. Operations MVP: assets, planned maintenance, work orders and SLAs, compliance calendar, incidents.
+4. Staff mobile app.

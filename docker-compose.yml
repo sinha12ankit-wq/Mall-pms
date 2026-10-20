@@ -1,0 +1,64 @@
+# Local development stack.
+#   docker compose up -d db          database only (run the apps with pnpm dev)
+#   docker compose --profile app up  database, API and web in containers
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mallpms
+      POSTGRES_PASSWORD: mallpms
+      POSTGRES_DB: mallpms
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mallpms -d mallpms']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    environment:
+      DATABASE_URL: postgres://mallpms:mallpms@db:5432/mallpms
+      SEED_PASSWORD: ${SEED_PASSWORD:-ChangeMe!2026}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      APP_DATABASE_URL: postgres://mallpms_app:mallpms_app@db:5432/mallpms
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-change-me}
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - '4000:4000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      API_URL: http://api:4000
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
