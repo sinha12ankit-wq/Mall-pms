@@ -44,4 +44,4 @@ ALTER TABLE space.malls ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 CREATE POLICY tenant_isolation ON space.malls
   USING (org_id = core.current_org_id() AND core.mall_visible(id))
-  WITH CHECK (org_id = core.current_org_id());
+  WITH CHECK (org_id = core.current_org_id() AND core.mall_visible(id));
