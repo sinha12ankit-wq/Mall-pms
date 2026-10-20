@@ -9,6 +9,7 @@ import { ConfigModule } from './config.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health/health.controller';
 import { MallsModule } from './malls/malls.module';
+import { OperationsModule } from './operations/operations.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { MallsModule } from './malls/malls.module';
     }),
     AuthModule,
     MallsModule,
+    OperationsModule,
   ],
   controllers: [HealthController],
   providers: [
